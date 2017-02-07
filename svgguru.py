@@ -13,7 +13,14 @@ import sys
 import re
 import argparse
 
+# Sorry, converting text to pixel size is complicated, I will use matplotlib
+#from matplotlib.text import Text as mplText 
+#from matplotlib.backends import backend_agg
+
 from lxml import etree as ET
+
+# Later muted if command line argument --verbose not given
+print_if_verbose = print
 
 
 def parse_style(stylestr):
@@ -57,31 +64,64 @@ def change_style(stylestr, propertyname, func, *funcargs):
     return format_style(styledict)
 
 
-def change_all_attr(tree, tag, attrname, func, *funcargs):
-    """transform all corresponding attributes in the tree with the function. 
+def iter_multiplefindall(tree, xpathlist, ns):
+    # Totally inefficient but I don't see how to do this otherwise
+    for xpath in xpathlist:
+        for node in tree.findall(xpath, ns):
+            yield node
+
+
+def change_all_attr(tree, taglist, attrname, func, *funcargs):
+    """transform all corresponding attributes in the tree with the function.
+
+    It transforms the attribute *while* traversing the tree.
     """
     root = tree.getroot()
     ns = root.nsmap
     if None in ns:
         ns.pop(None)
         
-    xpath = './/%s[@%s]' % (tag, attrname)
-    print('namespace: %r' % ns, file=sys.stderr)
-    print('namespace: ', ' '.join(str(nitem) for nitem in ns.items()), file=sys.stderr)
-    print('namespace:', '\n'.join(': '.join(nitem) for nitem in ns.items()),
-            file=sys.stderr)
-    print('search str: %r' % xpath, file=sys.stderr) 
-    for node in tree.findall(xpath, ns):
+    xpathlist = ['.//%s[@%s]' % (tag, attrname) for tag in taglist]
+    #print('namespace: %r' % ns, file=sys.stderr)
+    #print('namespace: ', ' '.join(str(nitem) for nitem in ns.items()), file=sys.stderr)
+    #print('namespace:', '\n'.join(': '.join(nitem) for nitem in ns.items()),
+    #        file=sys.stderr)
+    #print('search str: %r' % xpath, file=sys.stderr) 
+    for node in iter_multiplefindall(tree, xpathlist, ns):
         attr = node.attrib[attrname]
         node.set(attrname, func(attr, *funcargs))
 
 
+def batch_change_all_nodes(tree, taglist, attrname, func, *funcargs):
+    """The difference with `change_all_attr` is that the function 'func'
+    is applied to all nodes at once. So you can define a function whose
+    result depends on the multiple nodes.
+    
+    func must take the list of nodes, *funcargs, and modify in place the nodes.
+    """
+    root = tree.getroot()
+    ns = root.nsmap
+    if None in ns:
+        ns.pop(None)
+    
+    if attrname:
+        xpathlist = ['.//%s[@%s]' % (tag, attrname) for tag in taglist]
+    else:
+        xpathlist = ['.//%s' % tag for tag in taglist]
+    nodelist = [node in iter_multiplefindall(tree, xpathlist, ns)]
+    func(nodelist, *funcargs)
+
+
+def batch_resizefont():
+    """Increase font-size intelligently: if some text elements are aligned, 
+    keep them aligned. Otherwise keep it centered."""
+
 ### More specifically change all 'style' attributes of the given tag.
-def change_all_styleprop(tree, tag, propertyname, func, *funcargs):
+def change_all_styleprop(tree, taglist, propertyname, func, *funcargs):
     """Change the given properties of all 'style' attributes of tag."""
     change_prop = lambda stylestr: change_style(stylestr, propertyname, func,
                                                 *funcargs)
-    change_all_attr(tree, tag, 'style', change_prop)
+    change_all_attr(tree, taglist, 'style', change_prop)
 
 
 ### Specific function affecting all elements. They are called directly with
@@ -90,7 +130,8 @@ def svg_resizefont(infile, outfile, factor):
     """Multiply font-size attributes by the given factor."""
     tree = ET.parse(infile)
     factor = float(factor)
-    change_all_styleprop(tree, 'svg:tspan', 'font-size', atomic_resizefont, factor)
+    change_all_styleprop(tree, ['svg:tspan', 'svg:text'], 'font-size',
+                         atomic_resizefont, factor)
     tree.write(outfile)
 
 
@@ -158,6 +199,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=command_func.__doc__)
     parser.add_argument('infile')
     parser.add_argument('outfile')
+    parser.add_argument('-v', '--verbose', action='store_true')
 
     for cmd_args in ARGS[command]:
         parser.add_argument(*cmd_args.pop('args'), **cmd_args)
@@ -165,5 +207,10 @@ if __name__ == '__main__':
     parsed_args = parser.parse_args(cl_args)
 
     # Finally process the svg file.
-    command_func(**vars(parsed_args))
+    argdict = vars(parsed_args)
+    if not argdict.pop('verbose'):
+        def print_if_verbose(*args, **kwargs):
+            pass
+        
+    command_func(**argdict)
 
