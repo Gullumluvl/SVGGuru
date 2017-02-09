@@ -22,6 +22,71 @@ from lxml import etree as ET
 # Later muted if command line argument --verbose not given
 print_if_verbose = print
 
+# hexadecimal RGB color manipulation
+def hexcode2tuple(hexcolor):
+    hexcolor = hexcolor.lstrip('#')
+    if not len(hexcolor) == 6:
+        raise RuntimeError("Invalide hexadecimal color code: %r" % hexcolor)
+
+    hexchannels = (hexcolor[:2], hexcolor[2:4], hexcolor[4:])
+    # would be faster to use binary ?
+    R, G, B = (int(ch, base=16) for ch in hexchannels)
+    return R, G, B
+
+
+# yeah, I made a function for that
+def tuple2hexcode(R, G, B):
+    return '#%x%x%x' % (R, G, B)
+
+
+def hex_invert(hexcolor):
+    if not hexcolor.startswith('#') or not len(hexcolor) == 7 :
+        return hexcolor
+    R, G, B = (255 - C for C in hexcode2tuple(hexcolor))
+    return tuple2hexcode(R, G, B)
+
+atomic_invert = hex_invert
+
+def rgb_invertlight(R, G, B):
+    middle_lum = (min(R, G, B) + max(R, G, B)) / 2
+    #new_middle_lum = 255 - middle_lum
+    tr = int(255 - 2 * middle_lum)
+    R, G, B = (C + tr for C in (R, G, B))
+    return R, G, B
+
+def rgb_invertlight2(R, G, B):
+    lum = (R + G + B) / 3
+    #new_lum = 255 - lum
+    maxC = max(R, G, B)
+    minC = min(R, G, B)
+    tr = int(255 - 2 * lum)
+    tr = min(255 - maxC, tr) # doesnt change tr if tr < 0
+    tr =  max(- minC, tr) # doesnt change tr if tr > 0
+    R, G, B = (C + tr for C in (R, G, B))
+    return R, G, B
+
+
+def hex_invertlight(hexcolor):
+    """Invert luminosity, but keep hue."""
+    if not hexcolor.startswith('#') or not len(hexcolor) == 7 :
+        return hexcolor
+    R, G, B = hexcode2tuple(hexcolor)
+    R, G, B = rgb_invertlight(R, G, B)
+    return tuple2hexcode(R, G, B)
+
+
+def hex_invertlight2(hexcolor):
+    """Invert luminosity, but keep hue."""
+    if not hexcolor.startswith('#') or not len(hexcolor) == 7 :
+        return hexcolor
+    R, G, B = hexcode2tuple(hexcolor)
+    R, G, B = rgb_invertlight2(R, G, B)
+    return tuple2hexcode(R, G, B)
+
+
+atomic_invertlight = hex_invertlight
+atomic_invertlight2 = hex_invertlight2
+
 
 def parse_style(stylestr):
     """Return a dictionary of the style attribute text."""
@@ -59,8 +124,9 @@ def change_style(stylestr, propertyname, func, *funcargs):
     function."""
     styledict = parse_style(stylestr)
     # property must exist, otherwise error.
-    prop = styledict[propertyname]
-    styledict[propertyname] = func(prop, *funcargs)
+    prop = styledict.get(propertyname)
+    if prop is not None:
+        styledict[propertyname] = func(prop, *funcargs)
     return format_style(styledict)
 
 
@@ -112,9 +178,9 @@ def batch_change_all_nodes(tree, taglist, attrname, func, *funcargs):
     func(nodelist, *funcargs)
 
 
-def batch_resizefont():
-    """Increase font-size intelligently: if some text elements are aligned, 
-    keep them aligned. Otherwise keep it centered."""
+#def batch_resizefont():
+#    """Increase font-size intelligently: if some text elements are aligned, 
+#    keep them aligned. Otherwise keep it centered."""
 
 ### More specifically change all 'style' attributes of the given tag.
 def change_all_styleprop(tree, taglist, propertyname, func, *funcargs):
@@ -132,6 +198,35 @@ def svg_resizefont(infile, outfile, factor):
     factor = float(factor)
     change_all_styleprop(tree, ['svg:tspan', 'svg:text'], 'font-size',
                          atomic_resizefont, factor)
+    tree.write(outfile)
+
+
+def svg_invert(infile, outfile, keep_gradients=True):
+    tree = ET.parse(infile)
+    # exclude gradients: 'stop-color', 
+    #change_all_styleprop(tree, ['*'], 'stop-color', atomic_invertlight)
+    for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
+        change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
+    #for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
+    #    change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
+    #for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
+    #    change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
+    tree.write(outfile)
+
+
+def svg_invertlight(infile, outfile):
+    tree = ET.parse(infile)
+    # exclude gradients: 'stop-color', 
+    for color_attr in ('fill', 'stroke', 'pagecolor', 'bordercolor'):
+        change_all_styleprop(tree, ['*'], color_attr, atomic_invertlight)
+    tree.write(outfile)
+
+
+def svg_invertlight2(infile, outfile):
+    tree = ET.parse(infile)
+    # exclude gradients: 'stop-color', 
+    for color_attr in ('fill', 'stroke', 'pagecolor', 'bordercolor'):
+        change_all_styleprop(tree, ['*'], color_attr, atomic_invertlight2)
     tree.write(outfile)
 
 
@@ -176,7 +271,11 @@ def svg_resizefont_old(filename, factor, outfile):
     resizefonts(tree, factor, outfile)
 
 
-COMMANDS = {'resizefont': svg_resizefont}
+COMMANDS = {'resizefont': svg_resizefont,
+            'invert': svg_invert,
+            'invertlight': svg_invertlight,
+            'invertlight2': svg_invertlight2}
+
 ARGS = {'resizefont': [dict(args=('factor',), type=float,
                             help="by how much to multiply the font-size")]}
 
@@ -184,7 +283,8 @@ ARGS = {'resizefont': [dict(args=('factor',), type=float,
 longest_cmd_len = max(len(cmd) for cmd in COMMANDS)
 cmd_fmt = "\n  %%-%ds: %%s" % longest_cmd_len
 for command in sorted(COMMANDS):
-    __doc__ += cmd_fmt % (command, COMMANDS[command].__doc__)
+    command_doc = COMMANDS[command].__doc__ or ''
+    __doc__ += cmd_fmt % (command, command_doc)
 
 
 if __name__ == '__main__':
@@ -196,12 +296,13 @@ if __name__ == '__main__':
     command_func = COMMANDS[command]
 
     # Create argument parser of the specific command.
-    parser = argparse.ArgumentParser(description=command_func.__doc__)
+    parser = argparse.ArgumentParser(description=command_func.__doc__, 
+                                     prog='svgguru.py ' + command)
     parser.add_argument('infile')
     parser.add_argument('outfile')
     parser.add_argument('-v', '--verbose', action='store_true')
 
-    for cmd_args in ARGS[command]:
+    for cmd_args in ARGS.get(command, []):
         parser.add_argument(*cmd_args.pop('args'), **cmd_args)
 
     parsed_args = parser.parse_args(cl_args)
