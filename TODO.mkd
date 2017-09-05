@@ -1,0 +1,5 @@
+- convert flow text to normal text
+- invert image colors
+- thicken lines
+- increase font size (while keeping the alignment)
+- rescale (i.e: resize image + thicken lines)
