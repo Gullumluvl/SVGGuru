@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 
-"""Perform simple transformations on a svg file.
+"""Perform simple transformations on a svg file."""
 
-USAGE:
-    ./svgtweak2.py <command> <inputfile> <outputfile> [command arguments]
-
-COMMANDS:"""
+# USAGE:
+#     ./svgguru.py <command> <inputfile> <outputfile> [command arguments]
+# 
+# COMMANDS:"""
 
 
 import sys
@@ -25,27 +25,48 @@ print_if_verbose = print
 # hexadecimal RGB color manipulation
 def hexcode2tuple(hexcolor):
     hexcolor = hexcolor.lstrip('#')
-    if not len(hexcolor) == 6:
+    if not len(hexcolor) in [3,6]:
         raise RuntimeError("Invalide hexadecimal color code: %r" % hexcolor)
 
-    hexchannels = (hexcolor[:2], hexcolor[2:4], hexcolor[4:])
+    if len(hexcolor) == 3:
+        hexchannels = (hexcolor[0], hexcolor[1], hexcolor[2])
+    else:
+        hexchannels = (hexcolor[:2], hexcolor[2:4], hexcolor[4:])
     # would be faster to use binary ?
     R, G, B = (int(ch, base=16) for ch in hexchannels)
     return R, G, B
 
 
 # yeah, I made a function for that
-def tuple2hexcode(R, G, B):
-    return '#%x%x%x' % (R, G, B)
+def tuple2hexcode255(R, G, B):
+    return '#%02x%02x%02x' % (R, G, B)
+
+def tuple2hexcode15(R, G, B):
+    return '#%01x%01x%01x' % (R, G, B)
+
+tuple2hexcode = tuple2hexcode255
+
+name_inverter = {'white': 'black', 'black': 'white'}
 
 
 def hex_invert(hexcolor):
-    if not hexcolor.startswith('#') or not len(hexcolor) == 7 :
+    if not hexcolor.startswith('#') or not len(hexcolor) in [4, 7] :
         return hexcolor
-    R, G, B = (255 - C for C in hexcode2tuple(hexcolor))
-    return tuple2hexcode(R, G, B)
+    base = 15 if len(hexcolor) == 4 else 255
+    R, G, B = (base - C for C in hexcode2tuple(hexcolor))
+    return tuple2hexcode255(R,G,B) if base==255 else tuple2hexcode15(R,G,B)
 
-atomic_invert = hex_invert
+
+### TODO: make a decorator
+def col_invert(color, default=None):
+    name_inverter.update({None: default})
+    try:
+        return name_inverter[color]
+    except KeyError:
+        return hex_invert(color)
+
+
+atomic_invert = col_invert
 
 def rgb_invertlight(R, G, B):
     middle_lum = (min(R, G, B) + max(R, G, B)) / 2
@@ -121,12 +142,14 @@ def atomic_resizefont(fontstr, factor, to_int=True):
 ### Building blocks to make more specific changing functions
 def change_style(stylestr, propertyname, func, *funcargs):
     """Change one property of the 'style' attribute, according to the given
-    function."""
+    function.
+    - func: use one of the atomic_func"""
     styledict = parse_style(stylestr)
     # property must exist, otherwise error.
     prop = styledict.get(propertyname)
-    if prop is not None:
-        styledict[propertyname] = func(prop, *funcargs)
+    newprop = func(prop, *funcargs)
+    if newprop is not None:
+        styledict[propertyname] = newprop
     return format_style(styledict)
 
 
@@ -207,6 +230,9 @@ def svg_invert(infile, outfile, keep_gradients=True):
     #change_all_styleprop(tree, ['*'], 'stop-color', atomic_invertlight)
     for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
         change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
+
+    change_all_styleprop(tree, ['svg:tspan', 'svg:text'], 'fill',
+                         atomic_invert, 'white')
     #for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
     #    change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
     #for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
@@ -276,42 +302,52 @@ COMMANDS = {'resizefont': svg_resizefont,
             'invertlight': svg_invertlight,
             'invertlight2': svg_invertlight2}
 
-ARGS = {'resizefont': [dict(args=('factor',), type=float,
+#CMD_FUNC = {cmd_name: globals()['svg_' + cmd_name] for cmd_name in COMMANDS}
+
+CMD_ARGS = {'resizefont': [dict(args=('factor',), type=float,
                             help="by how much to multiply the font-size")]}
 
 # Complete __doc__
-longest_cmd_len = max(len(cmd) for cmd in COMMANDS)
-cmd_fmt = "\n  %%-%ds: %%s" % longest_cmd_len
-for command in sorted(COMMANDS):
-    command_doc = COMMANDS[command].__doc__ or ''
-    __doc__ += cmd_fmt % (command, command_doc)
+#longest_cmd_len = max(len(cmd) for cmd in COMMANDS)
+#cmd_fmt = "\n  %%-%ds: %%s" % longest_cmd_len
+#for command in sorted(COMMANDS):
+#    command_doc = COMMANDS[command].__doc__ or ''
+#    __doc__ += cmd_fmt % (command, command_doc)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) <= 1 or sys.argv[1] not in COMMANDS:
-        print(__doc__, file=sys.stderr)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument('infile')
+    parent_parser.add_argument('outfile')
+    parent_parser.add_argument('-v', '--verbose', action='store_true')
 
-    command, *cl_args = sys.argv[1:]
-    command_func = COMMANDS[command]
+    subparsers = parser.add_subparsers(dest='command')
+
+    #if len(sys.argv) <= 1 or sys.argv[1] not in COMMANDS:
+    #    print(__doc__, file=sys.stderr)
+    #    sys.exit(1)
+
+    #command, *cl_args = sys.argv[1:]
+    #command_func = COMMANDS[command]
 
     # Create argument parser of the specific command.
-    parser = argparse.ArgumentParser(description=command_func.__doc__, 
-                                     prog='svgguru.py ' + command)
-    parser.add_argument('infile')
-    parser.add_argument('outfile')
-    parser.add_argument('-v', '--verbose', action='store_true')
+    for cmd_name, cmd_func in COMMANDS.items():
+        cmd_parser = subparsers.add_parser(cmd_name, 
+                                          description=cmd_func.__doc__, 
+                                          parents=[parent_parser])
+        for cmd_args in CMD_ARGS.get(cmd_name, []):
+            #if cmd_args:
+            cmd_parser.add_argument(*cmd_args.pop('args'), **cmd_args)
 
-    for cmd_args in ARGS.get(command, []):
-        parser.add_argument(*cmd_args.pop('args'), **cmd_args)
-
-    parsed_args = parser.parse_args(cl_args)
+    parsed_args = parser.parse_args()
 
     # Finally process the svg file.
     argdict = vars(parsed_args)
+
     if not argdict.pop('verbose'):
         def print_if_verbose(*args, **kwargs):
             pass
         
-    command_func(**argdict)
+    COMMANDS[argdict.pop('command')](**argdict)
 
