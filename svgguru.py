@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from __future__ import print_function
 
 """Perform simple transformations on a svg file."""
 
@@ -13,9 +14,8 @@ import sys
 import re
 import argparse
 
-# Sorry, converting text to pixel size is complicated, I will use matplotlib
-#from matplotlib.text import Text as mplText 
-#from matplotlib.backends import backend_agg
+# TODO:
+# - included image: add a invert filter
 
 from lxml import etree as ET
 
