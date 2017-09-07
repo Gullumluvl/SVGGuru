@@ -66,6 +66,46 @@ def col_invert(color, default=None):
         return hex_invert(color)
 
 
+def fill_default(value, default=None):
+    if value:
+        return value
+    else:
+        return default
+
+
+# use fill_default!
+#def add_filter():
+#    """Add a filter key to the style element (for included images)"""
+#    return "url(#filter4251)"
+
+# Put this in <defs>:
+#    <filter
+#       style="color-interpolation-filters:sRGB;"
+#       inkscape:label="Invert"
+#       id="filter4251">
+#      <feColorMatrix
+#         values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 -0.21 -0.72 -0.07 2 0 "
+#         result="fbSourceGraphic"
+#         id="feColorMatrix4253" />
+#      <feColorMatrix
+#         result="fbSourceGraphicAlpha"
+#         in="fbSourceGraphic"
+#         values="0 0 0 -1 0 0 0 0 -1 0 0 0 0 -1 0 0 0 0 1 0"
+#         id="feColorMatrix4355" />
+#      <feColorMatrix
+#         id="feColorMatrix4357"
+#         type="hueRotate"
+#         values="180"
+#         result="color1"
+#         in="fbSourceGraphic" />
+#      <feColorMatrix
+#         id="feColorMatrix4359"
+#         values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 -0.21 -0.72 -0.07 2 0 "
+#         result="color2" />
+#    </filter>
+
+
+
 atomic_invert = col_invert
 
 def rgb_invertlight(R, G, B):
@@ -231,8 +271,8 @@ def svg_invert(infile, outfile, keep_gradients=True):
     for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
         change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
 
-    change_all_styleprop(tree, ['svg:tspan', 'svg:text'], 'fill',
-                         atomic_invert, 'white')
+    change_all_styleprop(tree, ['svg:text'], 'fill',
+                         fill_default, 'white')
     #for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
     #    change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
     #for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
