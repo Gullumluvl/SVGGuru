@@ -1,0 +1,47 @@
+SVGGuru
+=======
+
+Small utilities to perform command-line transformations on svg
+files.
+
+I took existing pieces of code here and there, and coded myself some parts in a
+quite dirty way, I do apologize for any inconvenience. It's still experimental
+and under development, so any suggestion, contribution, issue report is
+welcome!
+
+# Description
+
+## svgguru.py
+
+The most flexible tool. Right now, it can:
+
+- resize all fonts by a factor;
+- invert colors
+
+Internally, the principle is to navigate the xml structure, select specific
+tags, specific attributes, and specific properties (e.g, tag `text`,
+attribute `style`, and property `font-size`), and apply any custom function to
+transform the property. It is therefore quite easy to add any function to the
+code (currently working on one to invert light but not hue)
+
+### Usage:
+
+    ./svgguru [-h] <command> <infile> <outfile> <more args>
+
+`<command>` being `invert` or `resizefont`.
+
+## svg_layersplitter.py
+
+Find layers in a svg file, and export them to individual files. It reads a file
+describing how to export layers (layers can be added to previous ones).
+Convenient to create animations.
+
+## svg_resizefont.pl
+
+Just a Perl script to resize fonts. Rather use `./svgguru.py resizefont`.
+
+## unflowtext.sh
+
+Convert inkscape "flow text" boxes into normal boxes, using inkscape batch
+commands. **Not tested**, use at your own risk!
+Still looking for a better implementation, any help appreciated.
