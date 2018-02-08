@@ -1,0 +1,26 @@
+SVG files from different sources
+================================
+
+# Inkscape 0.91
+
+`simplest.inksc91.svg`
+
+# Inkscape 0.92
+
+`simplest.svg`
+
+# "plain" svg from Inkscape
+
+
+
+# Matplotlib
+
+
+
+# Ete3
+
+# R
+
+## Base plot
+
+## ggplot2
