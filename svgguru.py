@@ -199,10 +199,10 @@ def iter_multiplefindall(tree, xpathlist, ns):
         for node in tree.findall(xpath, ns):
             yield node
 
-def iter_multiplefindall(tree, xpathlist, ns):
-    for xpath in xpathlist:
-        for node in tree.iter(xpath, ns):
-            yield node
+#def iter_multiplefindall(tree, xpathlist, ns):
+#    for xpath in xpathlist:
+#        for node in tree.iter(xpath, ns):
+#            yield node
 
 
 def change_all_attr(tree, taglist, attrname, func, *funcargs):
