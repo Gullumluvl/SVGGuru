@@ -50,6 +50,8 @@ name_inverter = {'white': 'black', 'black': 'white'}
 
 
 def hex_invert(hexcolor):
+    if hexcolor is None:
+        return '"white"'
     if not hexcolor.startswith('#') or not len(hexcolor) in [4, 7] :
         return hexcolor
     base = 15 if len(hexcolor) == 4 else 255
@@ -129,6 +131,8 @@ def rgb_invertlight2(R, G, B):
 
 def hex_invertlight(hexcolor):
     """Invert luminosity, but keep hue."""
+    if hexcolor is None:
+        return '"white"'
     if not hexcolor.startswith('#') or not len(hexcolor) == 7 :
         return hexcolor
     R, G, B = hexcode2tuple(hexcolor)
@@ -138,6 +142,8 @@ def hex_invertlight(hexcolor):
 
 def hex_invertlight2(hexcolor):
     """Invert luminosity, but keep hue."""
+    if hexcolor is None:
+        return '"white"'
     if not hexcolor.startswith('#') or not len(hexcolor) == 7 :
         return hexcolor
     R, G, B = hexcode2tuple(hexcolor)
