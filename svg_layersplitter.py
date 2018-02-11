@@ -1,17 +1,23 @@
 #!/usr/bin/python2
 
+from __future__ import print_function
+
 ###
 # Modification of `https://raw.githubusercontent.com/splitbrain/material-icons/master/exportlayers.py` for more flexibility
 ###
 
-"""
-Usage: svg_layersplitter.py <input.svg> <output-dir> [<layers-config>]
+# Usage: svg_layersplitter.py <input.svg> <output-dir> [<layers-config>]
 
+"""
 Exports all Inkscape layers from the given <input.svg> into separate SVG files
 within the <output-dir> directory.
+"""
 
-<layers-config> is an optional file describing how layers are combined
-in each svg file. Here is the syntax:
+EPILOG="""
+<cfg> is an optional argument describing how layers are combined
+in each svg file. It can take the value '+' (then each layer is successively added to the previous set), or it is a file containing the succession information:
+
+Here is the syntax:
 
     - one line corresponds to one output svg file
     - each line contains several layers names (space separated)
@@ -22,13 +28,16 @@ in each svg file. Here is the syntax:
     - when the layer is written as is, with no sign, then the set is cleared
       and initialized with this layer.
 
-Layers with labels starting with _ will never be exported. Files are named
-after the layer names. Existing files will NOT be overwritten.
+Layers with labels starting with _ will never be exported.
+Files are named after the layer names.
+Existing files will not be overwritten, unless --force is used.
+Layers are piled up in the same order as in the original file.
 """
 
 import codecs
 import sys
 import os
+import argparse
 from xml.dom import minidom
 
 LAYER_KEY = 'inkscape:groupmode'
@@ -36,8 +45,6 @@ LAYER_VAL = 'layer'
 LABEL_KEY = 'inkscape:label'
 STYLE_KEY = 'style'
 
-def usage():
-    print __doc__
 def get_layers(src):
     """
     Returns all layers in the given SVG that don't start with an underscore
@@ -57,9 +64,10 @@ def get_layers(src):
             layers.append(g.attributes[LABEL_KEY].value)
     return layers
 
+
 def export_layers(layerset, src, dst):
     """
-    Exports a single layer and makes it visible
+    Exports a set of layers and makes it visible
 
     :param layer: The name of the layer to export
     :param src: The source SVG to load
@@ -108,53 +116,73 @@ def iter_layersets(layer_configfile):
         yield layerset
 
 
-def main():
-    """
-    Handle commandline arguments and run the tool
-    :return:
-    """
-    if len(sys.argv) not in (3, 4):
-        usage()
-        sys.exit(1)
+def iter_add(layers):
+    layer_set = set()
+    for layer in layers:
+        layer_set.add(layer)
+        yield layer_set
 
-    infile = sys.argv[1]
+
+def main(infile, outdir, cfg=None, force=False, fmt='_02%d', start=0):
+    """
+    """
     if not os.path.isfile(infile):
-        print "Can't find %s" % infile
-        sys.exit(1)
+        print("Can't find %s" % infile, file=sys.stderr)
+        return 1
 
-    outdir = sys.argv[2]
     if not os.path.isdir(outdir):
-        print "%s seems not to be a directory" % outdir
-        sys.exit(1)
+        print("%s seems not to be a directory" % outdir, file=sys.stderr)
+        return 1
 
+    base, _ = os.path.splitext(os.path.basename(infile))
+    outfmt = os.path.join(outdir, base + fmt + ".svg")
+    
     layers = get_layers(infile)
-    print "found %d suitable layers" % len(layers)
+    print("found %d suitable layers" % len(layers))
 
-    if len(sys.argv) == 3:
-        for layer in layers:
-            outfile = "%s.svg" % os.path.join(outdir, layer)
-            if os.path.isfile(outfile):
-                print "%s - %s exists, skipped" % (layer, outfile)
-                continue
-            else:
-                export_layers(set((layer,)), infile, outfile)
-                print "%s - %s exported" % (layer, outfile)
+    if not cfg:
+        iter_layers = (set((layer,)) for layer in layers)
+    elif cfg == '+':
+        iter_layers = iter_add(layers)
     else:
-        base, _ = os.path.splitext(os.path.basename(infile))
-        for i, layerset in enumerate(iter_layersets(sys.argv[3]), start=1):
-            outfile = os.path.join(outdir, "%s_%03d.svg" % (base, i))
-            if os.path.isfile(outfile):
-                print "%s exists, skipped" % outfile
-                continue
-            else:
-                export_layers(layerset, infile, outfile)
-                print "%s exported" % outfile
+        iter_layers = iter_layersets(cfg)
 
+        #for layer in layers:
+        #    outfile = "%s.svg" % os.path.join(outdir, layer)
+        #    if os.path.isfile(outfile):
+        #        print("%s - %s exists, skipped" % (layer, outfile))
+        #        continue
+        #    else:
+        #        export_layers(set((layer,)), infile, outfile)
+        #        print("%s - %s exported" % (layer, outfile))
 
-    sys.exit(0)
+    for i, layerset in enumerate(iter_layers, start=start):
+        outfile = outfmt % i
+        if os.path.isfile(outfile):
+            print("%s exists, skipped" % outfile)
+            continue
+        else:
+            export_layers(layerset, infile, outfile)
+            print("%s exported" % outfile)
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
-
+    parser = argparse.ArgumentParser(description=__doc__, epilog=EPILOG,
+                formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('infile')
+    parser.add_argument('outdir')
+    parser.add_argument('cfg', nargs='?')
+    parser.add_argument('-f', '--force', action='store_true',
+                        help='Overwrite existing files')
+    parser.add_argument('-b', '--beamer', '--multiinclude',
+                        action='store_const', dest='fmt', const='-%d',
+                        default='_%02d',
+                        help=("Format output filenames for beamer "
+                              "multiinclude: 'file-%%d.ext' "
+                              "['file%(default)s.ext']"))
+    parser.add_argument('-s', '--start', type=int, default=0,
+                        help='Where to start the layer count [%(default)s]')
+    sys.exit(main(**vars(parser.parse_args())))
 
