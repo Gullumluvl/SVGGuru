@@ -38,6 +38,7 @@ import codecs
 import sys
 import os
 import argparse
+from copy import copy
 from xml.dom import minidom
 
 LAYER_KEY = 'inkscape:groupmode'
@@ -75,6 +76,8 @@ def export_layers(layerset, src, dst):
     :return:
     """
     svg = minidom.parse(open(src))
+    
+    layerset = copy(layerset)
 
     for g in svg.getElementsByTagName('g'):
         if (
@@ -82,7 +85,8 @@ def export_layers(layerset, src, dst):
             g.getAttribute(LAYER_KEY) == LAYER_VAL and
             g.hasAttribute(LABEL_KEY)
         ):
-            if g.getAttribute(LABEL_KEY) not in layerset:
+            layername = g.getAttribute(LABEL_KEY)
+            if layername not in layerset:
                 # not the layer we want - remove
                 g.parentNode.removeChild(g)
             elif g.hasAttribute(STYLE_KEY):
@@ -90,6 +94,10 @@ def export_layers(layerset, src, dst):
                 style = g.getAttribute(STYLE_KEY)
                 style = style.replace('display:none', '')
                 g.setAttribute(STYLE_KEY, style)
+                layerset.remove(layername)
+
+    if layerset:
+        print('WARNING: unfound layers: ' + ' '.join(layerset), file=sys.stderr)
 
     export = svg.toxml()
     codecs.open(dst, "w", encoding="utf8").write(export)
@@ -158,7 +166,7 @@ def main(infile, outdir, cfg=None, force=False, fmt='_02%d', start=0):
 
     for i, layerset in enumerate(iter_layers, start=start):
         outfile = outfmt % i
-        if os.path.isfile(outfile):
+        if os.path.isfile(outfile) and not force:
             print("%s exists, skipped" % outfile)
             continue
         else:
