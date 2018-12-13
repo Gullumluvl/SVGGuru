@@ -282,6 +282,8 @@ def svg_invert(infile, outfile, keep_gradients=True):
     for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
         change_all_styleprop(tree, ['*'], color_attr, atomic_invert)
 
+    #change_all_styleprop(tree, ['text'], 'fill',
+    #                     fill_default, 'white')
     change_all_styleprop(tree, ['svg:text'], 'fill',
                          fill_default, 'white')
     #for color_attr in ('fill', 'stroke', 'stop-color', 'pagecolor', 'bordercolor'):
