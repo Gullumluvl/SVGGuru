@@ -108,9 +108,8 @@ def iter_layersets(layer_configfile):
     (understand adding/removing commands)"""
     with open(layer_configfile) as IN:
         lines = IN.readlines() 
-    layerset = set(lines[0].split())
-    yield layerset
-    for line in lines[1:]:
+    layerset = set()
+    for line in lines:
         words = line.split()
         if words[0][0] not in ('+', '-'):
             layerset = set()
