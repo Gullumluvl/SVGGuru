@@ -6,7 +6,7 @@ from __future__ import print_function
 # Modification of `https://raw.githubusercontent.com/splitbrain/material-icons/master/exportlayers.py` for more flexibility
 ###
 
-# Usage: svg_layersplitter.py <input.svg> <output-dir> [<layers-config>]
+# Usage: svg_slayer.py <input.svg> <output-dir> [<layers-config>]
 
 """
 Exports all Inkscape layers from the given <input.svg> into separate SVG files
@@ -75,7 +75,8 @@ def export_layers(layerset, src, dst):
     :param dst: The destination SVG to write to
     :return:
     """
-    svg = minidom.parse(open(src))
+    with open(src) as stream:
+        svg = minidom.parse(stream)
     
     layerset = copy(layerset)
 
@@ -111,6 +112,9 @@ def iter_layersets(layer_configfile):
     layerset = set()
     for line in lines:
         words = line.split()
+        if not words:
+            # Skip blank lines
+            continue
         if words[0][0] not in ('+', '-'):
             layerset = set()
         for word in words:
@@ -130,7 +134,7 @@ def iter_add(layers):
         yield layer_set
 
 
-def main(infile, outdir, cfg=None, force=False, fmt='_02%d', start=0):
+def main(infile, outdir, cfg=None, force=False, fmt='_02%d', start=0, list_layers=False):
     """
     """
     if not os.path.isfile(infile):
@@ -146,6 +150,9 @@ def main(infile, outdir, cfg=None, force=False, fmt='_02%d', start=0):
     
     layers = get_layers(infile)
     print("found %d suitable layers" % len(layers))
+    if list_layers:
+        print('\n'.join(layer for layer in layers))
+        return 0
 
     if not cfg:
         iter_layers = (set((layer,)) for layer in layers)
@@ -179,7 +186,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, epilog=EPILOG,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('infile')
-    parser.add_argument('outdir')
+    parser.add_argument('outdir', nargs='?', default='.')
     parser.add_argument('cfg', nargs='?')
     parser.add_argument('-f', '--force', action='store_true',
                         help='Overwrite existing files')
@@ -191,5 +198,7 @@ if __name__ == "__main__":
                               "['file%(default)s.ext']"))
     parser.add_argument('-s', '--start', type=int, default=0,
                         help='Where to start the layer count [%(default)s]')
+    parser.add_argument('-l', '--list-layers', '--list', action='store_true',
+                        help='List layers. No output.')
     sys.exit(main(**vars(parser.parse_args())))
 
