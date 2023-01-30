@@ -19,12 +19,14 @@ in each svg file. It can take the value '+' (then each layer is successively add
 
 Here is the syntax:
 
-    - one line corresponds to one output svg file
-    - each line contains several layers names (space separated)
-    - when a layer is given prepended with a '+', then the svg files
+    - one line corresponds to one output svg file;
+    - each line contains several layers names (whitespace separated);
+    - when a layer is given prefixed with a '+', then the svg files;
       contains all layers included in the previous svg file + the 
-      specified one.
-    - when prepended with '-', the layer is removed from the previous set
+      specified one (this must be the first layer of the line);
+    - when prefixed with '-', the layer is removed from the previous set;
+    - when prefixed with '*', the layer will be used here but automatically
+      removed after;
     - when the layer is written as is, with no sign, then the set is cleared
       and initialized with this layer.
 
@@ -108,23 +110,32 @@ def iter_layersets(layer_configfile):
     """Follows the syntax of the file to give the set of layers
     (understand adding/removing commands)"""
     with open(layer_configfile) as IN:
-        lines = IN.readlines() 
+        lines = IN.readlines()
     layerset = set()
     for line in lines:
         words = line.split()
+        # Remove comments
+        for i,w in enumerate(words):
+            if w[0] == '#':
+                words = words[:i]
+                break
         if not words:
             # Skip blank lines
             continue
-        if words[0][0] not in ('+', '-'):
+        if words[0][0] not in ('+', '-', '*'):
             layerset = set()
+        use_once_layers = set()
         for word in words:
             if word.startswith('-'):
                 layerset.remove(word[1:])
             else:
-                if word.startswith('+'):
+                if word[0] == '*':
+                    use_once_layers.add(word[1:])
+                if word[0] in '+*':
                     word = word[1:]
                 layerset.add(word)
         yield layerset
+        layerset.difference_update(use_once_layers)
 
 
 def iter_add(layers):
