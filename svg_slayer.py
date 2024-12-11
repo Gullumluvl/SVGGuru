@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/env python
 
 from __future__ import print_function
 
@@ -30,11 +30,12 @@ Here is the syntax:
     - when the layer is written as is, with no sign, then the set is cleared
       and initialized with this layer.
 
+Spaces in layer names are not supported.
 Layers with labels starting with _ will never be exported.
-Files are named after the layer names.
 Existing files will not be overwritten, unless --force is used.
-Layers are piled up in the same order as in the original file.
+Layers are stacked in the same order as in the original file.
 """
+
 
 import codecs
 import sys
@@ -43,10 +44,12 @@ import argparse
 from copy import copy
 from xml.dom import minidom
 
+
 LAYER_KEY = 'inkscape:groupmode'
 LAYER_VAL = 'layer'
 LABEL_KEY = 'inkscape:label'
 STYLE_KEY = 'style'
+
 
 def get_layers(src):
     """
@@ -79,7 +82,7 @@ def export_layers(layerset, src, dst):
     """
     with open(src) as stream:
         svg = minidom.parse(stream)
-    
+
     layerset = copy(layerset)
 
     for g in svg.getElementsByTagName('g'):
@@ -92,18 +95,19 @@ def export_layers(layerset, src, dst):
             if layername not in layerset:
                 # not the layer we want - remove
                 g.parentNode.removeChild(g)
-            elif g.hasAttribute(STYLE_KEY):
-                # make sure the layer isn't hidden
-                style = g.getAttribute(STYLE_KEY)
-                style = style.replace('display:none', '')
-                g.setAttribute(STYLE_KEY, style)
+            else:
+                if g.hasAttribute(STYLE_KEY):
+                    # make sure the layer isn't hidden
+                    style = g.getAttribute(STYLE_KEY)
+                    style = style.replace('display:none', '')
+                    g.setAttribute(STYLE_KEY, style)
                 layerset.remove(layername)
 
     if layerset:
-        print('WARNING: unfound layers: ' + ' '.join(layerset), file=sys.stderr)
+        print('WARNING: unfound layers: ' + ', '.join(map(repr, layerset)), file=sys.stderr)
 
-    export = svg.toxml()
-    codecs.open(dst, "w", encoding="utf8").write(export)
+    exported = svg.toxml()
+    codecs.open(dst, "w", encoding="utf8").write(exported)
 
 
 def iter_layersets(layer_configfile):
@@ -145,22 +149,24 @@ def iter_add(layers):
         yield layer_set
 
 
-def main(infile, outdir, cfg=None, force=False, fmt='_02%d', start=0, list_layers=False):
+def extract_layers_fromfile(infile, outdir, cfg=None, force=False,
+                            suffix_fmt='-%d', start=0, list_layers=False):
     """
     """
     if not os.path.isfile(infile):
-        print("Can't find %s" % infile, file=sys.stderr)
+        print("ERROR: Can't find %s" % infile, file=sys.stderr)
         return 1
 
     if not os.path.isdir(outdir):
-        print("%s seems not to be a directory" % outdir, file=sys.stderr)
+        print("ERROR: %s does not seem to be a directory" % outdir, file=sys.stderr)
         return 1
 
     base, _ = os.path.splitext(os.path.basename(infile))
-    outfmt = os.path.join(outdir, base + fmt + ".svg")
-    
+    outfmt = os.path.join(outdir, base + suffix_fmt + ".svg")
+
     layers = get_layers(infile)
-    print("found %d suitable layers" % len(layers))
+    print("INFO: Found %d suitable layers" % len(layers), file=sys.stderr)
+
     if list_layers:
         print('\n'.join(layer for layer in layers))
         return 0
@@ -184,32 +190,34 @@ def main(infile, outdir, cfg=None, force=False, fmt='_02%d', start=0, list_layer
     for i, layerset in enumerate(iter_layers, start=start):
         outfile = outfmt % i
         if os.path.isfile(outfile) and not force:
-            print("%s exists, skipped" % outfile)
+            print("SKIP: %s exists, skipped" % outfile)
             continue
         else:
             export_layers(layerset, infile, outfile)
-            print("%s exported" % outfile)
+            print("OUT:  %s exported" % outfile)
 
     return 0
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description=__doc__, epilog=EPILOG,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('infile')
-    parser.add_argument('outdir', nargs='?', default='.')
-    parser.add_argument('cfg', nargs='?')
+    parser.add_argument('outdir', nargs='?', default='.', help='[%(default)s]')
+    parser.add_argument('cfg', nargs='?',
+                        help='If not given, extract all found layers in separate files.')
     parser.add_argument('-f', '--force', action='store_true',
                         help='Overwrite existing files')
-    parser.add_argument('-b', '--beamer', '--multiinclude',
-                        action='store_const', dest='fmt', const='-%d',
-                        default='_%02d',
-                        help=("Format output filenames for beamer "
-                              "multiinclude: 'file-%%d.ext' "
-                              "['file%(default)s.ext']"))
+    parser.add_argument('-S', '--suffix-fmt', default='-%d',
+                        help=("Number suffix format of output filenames. The "
+                              "default is compatible with beamer multiinclude,"
+                              " generating 'basename-%%d.ext'. [%(default)r]"))
     parser.add_argument('-s', '--start', type=int, default=0,
                         help='Where to start the layer count [%(default)s]')
     parser.add_argument('-l', '--list-layers', '--list', action='store_true',
                         help='List layers. No output.')
-    sys.exit(main(**vars(parser.parse_args())))
+    extract_layers_fromfile(**vars(parser.parse_args()))
 
+
+if __name__ == "__main__":
+    sys.exit(main())

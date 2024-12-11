@@ -11,6 +11,12 @@ welcome!
 
 # Description
 
+## svg_slayer.py
+
+Find layers in a svg file, and export them to individual files. It reads a
+config file describing how to export layers (layers can be added to previous ones).
+Convenient to create animations.
+
 ## svgguru.py
 
 The most flexible tool. Right now, it can:
@@ -29,12 +35,6 @@ code (currently working on one to invert light but not hue)
     ./svgguru [-h] <command> <infile> <outfile> <more args>
 
 `<command>` being `invert` or `resizefont`.
-
-## svg_layersplitter.py
-
-Find layers in a svg file, and export them to individual files. It reads a file
-describing how to export layers (layers can be added to previous ones).
-Convenient to create animations.
 
 ## svg_resizefont.pl
 
