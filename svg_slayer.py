@@ -1,9 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
 ###
-# Modification of `https://raw.githubusercontent.com/splitbrain/material-icons/master/exportlayers.py` for more flexibility
+# Modification of `https://raw.githubusercontent.com/splitbrain/material-icons/master/exportlayers.py`
+# for more flexibility
 ###
 
 # Usage: svg_slayer.py <input.svg> <output-dir> [<layers-config>]
@@ -115,7 +116,7 @@ def iter_layersets(layer_configfile):
     (understand adding/removing commands)"""
     with open(layer_configfile) as IN:
         lines = IN.readlines()
-    layerset = set()
+    layerset = []  # The list preserves the input words ordering
     for line in lines:
         words = line.split()
         # Remove comments
@@ -127,7 +128,7 @@ def iter_layersets(layer_configfile):
             # Skip blank lines
             continue
         if words[0][0] not in ('+', '-', '*'):
-            layerset = set()
+            layerset = []
         use_once_layers = set()
         for word in words:
             if word.startswith('-'):
@@ -137,20 +138,20 @@ def iter_layersets(layer_configfile):
                     use_once_layers.add(word[1:])
                 if word[0] in '+*':
                     word = word[1:]
-                layerset.add(word)
+                layerset.append(word)
         yield layerset
-        layerset.difference_update(use_once_layers)
+        layerset = [layer for layer in layerset if layer not in use_once_layers]
 
 
 def iter_add(layers):
-    layer_set = set()
+    layer_set = []
     for layer in layers:
-        layer_set.add(layer)
+        layer_set.append(layer)
         yield layer_set
 
 
 def extract_layers_fromfile(infile, outdir, cfg=None, force=False,
-                            suffix_fmt='-%d', start=0, list_layers=False):
+                            outfmt='{base}_{num:02d}', start=0, list_layers=False):
     """
     """
     if not os.path.isfile(infile):
@@ -162,8 +163,8 @@ def extract_layers_fromfile(infile, outdir, cfg=None, force=False,
         return 1
 
     base, _ = os.path.splitext(os.path.basename(infile))
-    outfmt = os.path.join(outdir, base + suffix_fmt + ".svg")
-
+    outfmt = os.path.join(outdir, outfmt + ".svg")
+    
     layers = get_layers(infile)
     print("INFO: Found %d suitable layers" % len(layers), file=sys.stderr)
 
@@ -172,7 +173,7 @@ def extract_layers_fromfile(infile, outdir, cfg=None, force=False,
         return 0
 
     if not cfg:
-        iter_layers = (set((layer,)) for layer in layers)
+        iter_layers = ([layer] for layer in layers)
     elif cfg == '+':
         iter_layers = iter_add(layers)
     else:
@@ -188,7 +189,7 @@ def extract_layers_fromfile(infile, outdir, cfg=None, force=False,
         #        print("%s - %s exported" % (layer, outfile))
 
     for i, layerset in enumerate(iter_layers, start=start):
-        outfile = outfmt % i
+        outfile = outfmt.format(num=i, base=base, layers=layerset)
         if os.path.isfile(outfile) and not force:
             print("SKIP: %s exists, skipped" % outfile)
             continue
@@ -205,18 +206,25 @@ def main():
     parser.add_argument('infile')
     parser.add_argument('outdir', nargs='?', default='.', help='[%(default)s]')
     parser.add_argument('cfg', nargs='?',
-                        help='If not given, extract all found layers in separate files.')
+                        help='If not given, extract all layers into separate files.')
     parser.add_argument('-f', '--force', action='store_true',
                         help='Overwrite existing files')
-    parser.add_argument('-S', '--suffix-fmt', default='-%d',
-                        help=("Number suffix format of output filenames. The "
-                              "default is compatible with beamer multiinclude,"
-                              " generating 'basename-%%d.ext'. [%(default)r]"))
+    outfmt_group = parser.add_mutually_exclusive_group()
+    outfmt_group.add_argument('-b', '--beamer', '--multiinclude',
+                        action='store_const', dest='outfmt', const='{base}-{num:d}',
+                        default='{base}_{num:02d}',
+                        help="Format output basenames for beamer multiinclude")
+    outfmt_group.add_argument('-o', '--outfmt', default='{base}_{num:02d}',
+                              help=("Output basename format ['%(default)s']. "
+                              "Valid formatting keys are:"
+                              " {base} the basename of the input file,"
+                              " {num} the index of the output,"
+                              " {layers[i]} the layer #i of the current output"))
     parser.add_argument('-s', '--start', type=int, default=0,
-                        help='Where to start the layer count [%(default)s]')
+                        help='Where to start the output count [%(default)s]')
     parser.add_argument('-l', '--list-layers', '--list', action='store_true',
                         help='List layers. No output.')
-    extract_layers_fromfile(**vars(parser.parse_args()))
+    return extract_layers_fromfile(**vars(parser.parse_args()))
 
 
 if __name__ == "__main__":
